@@ -1,6 +1,7 @@
+from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 
 
 class ContactCreate(BaseModel):
@@ -14,5 +15,15 @@ class ContactResponse(BaseModel):
     name: str
     email: str
     phone: Optional[str] = None
+
+    model_config = {"from_attributes": True}
+
+
+class CallLogResponse(BaseModel):
+    id: int
+    method: str
+    path: str
+    status_code: int
+    timestamp: datetime
 
     model_config = {"from_attributes": True}

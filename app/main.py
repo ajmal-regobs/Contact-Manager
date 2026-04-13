@@ -1,9 +1,9 @@
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from sqlalchemy.orm import Session
 
-from app.database import Base, engine, get_db
-from app.models import Contact
-from app.schemas import ContactCreate, ContactResponse
+from app.database import Base, LogsBase, engine, get_db, get_logs_db, logs_engine
+from app.models import CallLog, Contact
+from app.schemas import CallLogResponse, ContactCreate, ContactResponse
 
 app = FastAPI(title="Contact Manager")
 
@@ -11,6 +11,24 @@ app = FastAPI(title="Contact Manager")
 @app.on_event("startup")
 def on_startup():
     Base.metadata.create_all(bind=engine)
+    LogsBase.metadata.create_all(bind=logs_engine)
+
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    response: Response = await call_next(request)
+    db = next(get_logs_db())
+    try:
+        log = CallLog(
+            method=request.method,
+            path=request.url.path,
+            status_code=response.status_code,
+        )
+        db.add(log)
+        db.commit()
+    finally:
+        db.close()
+    return response
 
 
 @app.get("/health")
@@ -45,3 +63,8 @@ def remove_contact(contact_id: int, db: Session = Depends(get_db)):
 @app.get("/contacts", response_model=list[ContactResponse])
 def list_contacts(db: Session = Depends(get_db)):
     return db.query(Contact).all()
+
+
+@app.get("/logs", response_model=list[CallLogResponse])
+def list_logs(db: Session = Depends(get_logs_db)):
+    return db.query(CallLog).order_by(CallLog.timestamp.desc()).all()
